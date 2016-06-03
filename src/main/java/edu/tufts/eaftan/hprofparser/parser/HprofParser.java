@@ -46,15 +46,26 @@ public class HprofParser {
   private RecordHandler handler;
   private HashMap<Long, ClassInfo> classMap;
   private ArrayList<Instance> instanceList;
+  private int idSize;
+  private Byte finishAfterTag;
 
   public HprofParser(RecordHandler handler) {
-    this.handler = handler;
-    classMap = new HashMap<Long, ClassInfo>();
-    instanceList = new ArrayList<Instance>();
+	  this(handler, null);
   } 
-
-  public void parse(DataInput in) throws IOException {
-
+  
+  
+  /**
+   * @param handler
+   * @param finishAfterTag Record tag after which to stop parsing and return 
+   */
+  public HprofParser(RecordHandler handler, Byte finishAfterTag) {
+    this.handler = handler;
+    this.finishAfterTag = finishAfterTag;
+    classMap = new HashMap<Long, ClassInfo>();
+    instanceList = new ArrayList<Instance>();	  
+  }
+  
+  public void parse(DataInput in, boolean header) throws IOException {
     /* The file format looks like this:
      *
      * header: 
@@ -73,11 +84,13 @@ public class HprofParser {
      *   [u1]* - body
      */
 
-    // header
-    String format = readUntilNull(in);
-    int idSize = in.readInt();
-    long startTime = in.readLong();
-    handler.header(format, idSize, startTime);
+	if(header) {
+	    // header
+	    String format = readUntilNull(in);
+	    idSize = in.readInt();
+	    long startTime = in.readLong();
+	    handler.header(format, idSize, startTime);
+	}
 
     // records
     boolean done;
@@ -85,6 +98,10 @@ public class HprofParser {
       done = parseRecord(in, idSize);
     } while (!done);
     handler.finished();
+  }
+
+  public void parse(DataInput in) throws IOException {
+	  parse(in, true);
   }
 
   public static String readUntilNull(DataInput in) throws IOException {
@@ -288,7 +305,11 @@ public class HprofParser {
         throw new HprofParserException("Unexpected top-level record type: " + tag);
     }
     
-    return false;
+    if(finishAfterTag != null && finishAfterTag.equals(tag)) {
+    	return true;
+    } else {
+    	return false;
+    }
   }
 
   // returns number of bytes parsed
